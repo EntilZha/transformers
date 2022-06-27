@@ -615,10 +615,10 @@ def main():
     # Prediction
     if training_args.do_predict:
         logger.info("*** Predict ***")
-        predict_file = os.path.basename(data_args.test_file).replace('.jsonl', '').replace('.json', '')
-        stage = f"{predict_file}-model-{clean_filename(model_args.model_name_or_path)}"
+        # predict_file = os.path.basename(data_args.test_file).replace('.jsonl', '').replace('.json', '')
+        # stage = f"{predict_file}-model-{clean_filename(model_args.model_name_or_path)}"
 
-        results = trainer.predict(test_dataset, test_examples, stage=stage)
+        results = trainer.predict(test_dataset, test_examples)
         metrics = results.metrics
 
         max_test_samples = data_args.max_test_samples if data_args.max_test_samples is not None else len(test_dataset)
