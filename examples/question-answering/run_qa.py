@@ -21,6 +21,7 @@ Fine-tuning the library models for question answering.
 import logging
 import os
 import sys
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -46,7 +47,7 @@ from utils_qa import postprocess_qa_predictions
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
-check_min_version("4.5.0")
+check_min_version("4.5.0.dev0")
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +195,27 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
 
 
+# MAXEDIT
+def clean_filename(filename):
+    # result--private-home-maxbartolo-_data-aqa_v1_0_full-squad_splits-split_dev_majority-model--checkpoint-maxbartolo-qgen-roberta_trained_qgen_diversity_new-dcombined_plus_squad_10k_beam_10_diversebeamgroups_10_diversebeamstrength_01_nbest03_numqs262794-checkpoint-2736.txt
+    filename = filename.replace('.json', '')
+    filename = filename.replace('/', '-')
+    filename = filename.replace('.', '_')
+    # Code data
+    filename = filename.replace('-private-home-maxbartolo-_code-qgen-data-', '')
+    # Data files
+    filename = filename.replace('-private-home-maxbartolo-_data-aqa_v1_0_full-', '')
+    filename = filename.replace('-private-home-maxbartolo-_data-', '')
+    filename = filename.replace('-private-home-maxbartolo-', '')
+    # Checkpoint files
+    filename = filename.replace('-checkpoint-maxbartolo-qgen-roberta_trained_qgen_diversity_new-', '')
+    filename = filename.replace('-checkpoint-maxbartolo-qgen-', '')
+    filename = filename.replace('-checkpoint-maxbartolo-', '')
+    # Excess details
+    filename = re.sub(r'_train_[0-9]{8}\-[0-9]{4}-train', '', filename)
+    return re.sub('[^A-Za-z0-9_-]+', '', filename)
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
@@ -269,7 +291,9 @@ def main():
         if data_args.test_file is not None:
             data_files["test"] = data_args.test_file
             extension = data_args.test_file.split(".")[-1]
-        datasets = load_dataset(extension, data_files=data_files, field="data")
+        # datasets = load_dataset(extension, data_files=data_files, field="data")
+        datasets = load_dataset('transformersdadc/examples/question-answering/custom_load_squad', data_files=data_files, config_data_files=data_files)
+
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -309,13 +333,14 @@ def main():
         )
 
     # Preprocessing the datasets.
-    # Preprocessing is slighlty different for training and evaluation.
+    # Preprocessing is slightly different for training and evaluation.
     if training_args.do_train:
         column_names = datasets["train"].column_names
     elif training_args.do_eval:
         column_names = datasets["validation"].column_names
     else:
         column_names = datasets["test"].column_names
+
     question_column_name = "question" if "question" in column_names else column_names[0]
     context_column_name = "context" if "context" in column_names else column_names[1]
     answer_column_name = "answers" if "answers" in column_names else column_names[2]
@@ -590,7 +615,10 @@ def main():
     # Prediction
     if training_args.do_predict:
         logger.info("*** Predict ***")
-        results = trainer.predict(test_dataset, test_examples)
+        predict_file = os.path.basename(data_args.test_file).replace('.jsonl', '').replace('.json', '')
+        stage = f"{predict_file}-model-{clean_filename(model_args.model_name_or_path)}"
+
+        results = trainer.predict(test_dataset, test_examples, stage=stage)
         metrics = results.metrics
 
         max_test_samples = data_args.max_test_samples if data_args.max_test_samples is not None else len(test_dataset)
